@@ -4,7 +4,33 @@ const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 const cors = require('cors');
 
+// Add at the top
+const { exec } = require('child_process');
+
+// Add after server starts
+app.listen(PORT, () => {
+    console.log(`✅ Server running on http://localhost:${PORT}`);
+    
+    // Run security scan
+    exec('npm audit --json', (error, stdout, stderr) => {
+        if (!error) {
+            const audit = JSON.parse(stdout);
+            const vulnerabilities = audit.metadata.vulnerabilities;
+            console.log(`🔒 Security Scan: ${vulnerabilities.total} vulnerabilities found`);
+        }
+    });
+});
 const app = express();
+// Add at top:
+const validator = require('validator');
+
+// In register function, add after getting email/password:
+if (!validator.isEmail(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+}
+if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+}
 
 // ========== FIXED CORS SETTINGS ==========
 app.use(cors({
