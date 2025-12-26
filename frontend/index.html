@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secure App</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        input, button { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .message { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .section { display: none; }
+        .active { display: block; }
+        .tab { display: inline-block; padding: 10px 20px; cursor: pointer; }
+        .tab.active { background: #007bff; color: white; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Secure Web App</h1>
+        
+        <!-- Tabs -->
+        <div style="margin-bottom: 20px;">
+            <span class="tab active" onclick="showSection('login')">Login</span>
+            <span class="tab" onclick="showSection('register')">Register</span>
+        </div>
+        
+        <!-- Message Display -->
+        <div id="message" class="message"></div>
+        
+        <!-- Login Form -->
+        <div id="loginSection" class="section active">
+            <h2>Login</h2>
+            <input type="email" id="loginEmail" placeholder="Email" value="admin@test.com">
+            <input type="password" id="loginPassword" placeholder="Password" value="admin123">
+            <button onclick="login()">Login</button>
+        </div>
+        
+        <!-- Register Form -->
+        <div id="registerSection" class="section">
+            <h2>Register</h2>
+            <input type="email" id="registerEmail" placeholder="Email">
+            <input type="password" id="registerPassword" placeholder="Password">
+            <button onclick="register()">Register</button>
+        </div>
+        
+        <!-- Profile Section -->
+        <div id="profileSection" class="section">
+            <h2>Welcome, <span id="userEmail"></span></h2>
+            <p>Role: <span id="userRole" style="color:red; font-weight:bold;"></span></p>
+            
+            <button onclick="getProfile()">Get Profile</button>
+            <button onclick="getAllUsers()" id="adminBtn" style="background: #dc3545; display: none;">Admin: Get All Users</button>
+            <button onclick="logout()" style="background: #6c757d;">Logout</button>
+            
+            <div id="usersList" style="margin-top: 20px; padding: 10px; background: #f8f9fa;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        
+        // Show/hide sections
+        function showSection(sectionName) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            
+            document.getElementById(sectionName + 'Section').classList.add('active');
+            document.querySelector(`[onclick="showSection('${sectionName}')"]`).classList.add('active');
+        }
+        
+        // Show message
+        function showMessage(text, type = 'info') {
+            const msgDiv = document.getElementById('message');
+            msgDiv.textContent = text;
+            msgDiv.className = 'message ' + type;
+            msgDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                msgDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Login function
+        async function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            showMessage('Logging in...', 'info');
+            
+            try {
+                const response = await fetch(API_URL + '/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    showMessage('✅ Login successful!', 'success');
+                    
+                    // Show profile section
+                    document.getElementById('loginSection').classList.remove('active');
+                    document.getElementById('registerSection').classList.remove('active');
+                    document.getElementById('profileSection').classList.add('active');
+                    
+                    // Set user info
+                    document.getElementById('userEmail').textContent = data.user.email;
+                    document.getElementById('userRole').textContent = data.user.role;
+                    
+                    // Show admin button if admin
+                    if (data.user.role === 'admin') {
+                        document.getElementById('adminBtn').style.display = 'block';
+                    }
+                    
+                } else {
+                    showMessage('❌ ' + (data.error || 'Login failed'), 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Error: ' + error, 'error');
+            }
+        }
+        
+        // Register function
+        async function register() {
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            if (!email || !password) {
+                showMessage('Please enter email and password', 'error');
+                return;
+            }
+            
+            showMessage('Registering...', 'info');
+            
+            try {
+                const response = await fetch(API_URL + '/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    showMessage('✅ Registration successful! Please login.', 'success');
+                    showSection('login');
+                } else {
+                    showMessage('❌ ' + (data.error || 'Registration failed'), 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Error: ' + error, 'error');
+            }
+        }
+        
+        // Get profile
+        async function getProfile() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                showMessage('Not logged in', 'error');
+                return;
+            }
+            
+            showMessage('Getting profile...', 'info');
+            
+            try {
+                const response = await fetch(API_URL + '/profile', {
+                    headers: { 
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.email) {
+                    document.getElementById('userEmail').textContent = data.email;
+                    document.getElementById('userRole').textContent = data.role;
+                    document.getElementById('userRole').style.color = data.role === 'admin' ? 'red' : 'blue';
+                    
+                    showMessage('✅ Profile loaded!', 'success');
+                } else {
+                    showMessage('❌ ' + (data.error || 'Failed to get profile'), 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Error: ' + error, 'error');
+            }
+        }
+        
+        // Get all users (admin only)
+        async function getAllUsers() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                showMessage('Not logged in', 'error');
+                return;
+            }
+            
+            showMessage('Getting users...', 'info');
+            
+            try {
+                const response = await fetch(API_URL + '/admin/users', {
+                    headers: { 
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.users) {
+                    const usersList = document.getElementById('usersList');
+                    usersList.innerHTML = '<h3>All Users:</h3>';
+                    
+                    data.users.forEach(user => {
+                        const div = document.createElement('div');
+                        div.style.padding = '5px';
+                        div.style.margin = '5px';
+                        div.style.background = user.role === 'admin' ? '#ffcccc' : '#e6f7ff';
+                        div.innerHTML = `<strong>${user.email}</strong> - Role: <span style="color:${user.role === 'admin' ? 'red' : 'blue'}">${user.role}</span>`;
+                        usersList.appendChild(div);
+                    });
+                    
+                    showMessage(`✅ Found ${data.count} users`, 'success');
+                } else {
+                    showMessage('❌ ' + (data.error || 'No users found'), 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Error: ' + error, 'error');
+            }
+        }
+        
+        // Logout
+        function logout() {
+            localStorage.removeItem('token');
+            showSection('login');
+            showMessage('Logged out successfully', 'success');
+        }
+        
+        // Check if already logged in
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                // Try to parse token to get user info
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    document.getElementById('userEmail').textContent = payload.email;
+                    document.getElementById('userRole').textContent = payload.role;
+                    
+                    if (payload.role === 'admin') {
+                        document.getElementById('adminBtn').style.display = 'block';
+                    }
+                    
+                    showSection('profile');
+                } catch (e) {
+                    localStorage.removeItem('token');
+                }
+            }
+        };
+    </script>
+</body>
+</html>
